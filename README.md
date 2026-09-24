@@ -72,7 +72,7 @@ Traversal uses an explicit stack rather than recursive calls; memory scales with
 From the repository root:
 
 ```sh
-just ecosystem-test walkdir
+(cd ../verification && just ecosystem-test walkdir)
 ```
 
 The independent consumer preserves the complete former compiler regression
