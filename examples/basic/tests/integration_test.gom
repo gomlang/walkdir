@@ -1,6 +1,6 @@
 package tests;
 
-use consumer::walkdir as app;
+use ecosystem::walkdir::examples::basic as app;
 
 #[test]
 fn migrated_filesystem_behavior_remains_compatible() -> () {
