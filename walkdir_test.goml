@@ -2,6 +2,7 @@ package walkdir;
 
 use std::bytes::endian;
 use std::fs;
+use std::context;
 use std::io;
 use std::os::linux::syscall;
 use std::path;
@@ -205,7 +206,10 @@ fn reads_multiple_batches_and_closes_on_exec() -> () {
     let flags = testing::expect_ok(syscall::syscall6(72, [fd, 1, 0, 0, 0, 0]), "fcntl");
     testing::assert_eq(flags.errno, 0);
     testing::assert(flags.r1 & 1 != 0);
-    let actual = testing::expect_ok(directory_names(fd, root), "getdents64");
+    let actual = testing::expect_ok(
+        directory_names_with(fd, root, context::Context::background()),
+        "getdents64",
+    );
     let expected = testing::expect_ok(fs::read_dir(root), "host read directory");
     testing::assert_eq(actual.len(), 1200);
     for index in 0..actual.len() {
@@ -230,7 +234,10 @@ fn preserves_errno_and_rejects_embedded_nul() -> () {
     testing::assert_eq(error.kind(), io::ErrorKind::InvalidInput);
     let fd = testing::expect_ok(open_directory(location(root), false), "open directory");
     testing::expect_ok(close_fd(fd, root), "close directory");
-    let error = testing::expect_err(directory_names(fd, root), "closed directory");
+    let error = testing::expect_err(
+        directory_names_with(fd, root, context::Context::background()),
+        "closed directory",
+    );
     testing::assert(error.raw_os_code() == Option::Some(9));
 }
 

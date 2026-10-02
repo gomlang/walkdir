@@ -1,0 +1,90 @@
+package tests;
+
+use ecosystem::walkdir;
+use std::context;
+use std::fs;
+use std::io;
+use std::testing;
+
+fn retained(root: string) -> isize {
+    let mut count = 0;
+    for name in testing::expect_ok(fs::read_dir("/proc/self/fd"), "descriptors") {
+        if let Ok(target) = fs::canonicalize("/proc/self/fd/" + name) {
+            if target == root || target.starts_with(root + "/") {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+#[test]
+fn cancellation_closes_ancestors_and_permanently_exhausts() -> () {
+    let root = directory("cancel");
+    defer {
+        let _ = fs::remove_dir_all(root);
+    };
+    testing::assert_ok(fs::create_dir_all(root + "/a/b"));
+    context::with_cancel(
+        context::Context::background(),
+        |ctx, cancel| {
+            let before = retained(root);
+            let iterator = walkdir::WalkDir::new(root).with_context(ctx).iter();
+            let _ = next_entry(iterator);
+            let _ = next_entry(iterator);
+            testing::assert(retained(root) > before);
+            cancel.cancel();
+            let error = testing::expect_err(
+                testing::expect_some(iterator.next(), "cancellation"),
+                "cancelled",
+            );
+            testing::assert_eq(error.kind(), io::ErrorKind::Interrupted);
+            testing::assert_eq(retained(root), before);
+            testing::assert_none(iterator.next());
+            iterator.close();
+        },
+    );
+}
+
+#[test]
+fn cancelled_context_and_filter_never_yield_entries() -> () {
+    context::with_cancel(
+        context::Context::background(),
+        |ctx, cancel| {
+            cancel.cancel();
+            let iterator = walkdir::WalkDir::new("does-not-exist").with_context(ctx).iter();
+            let error = testing::expect_err(
+                testing::expect_some(iterator.next(), "error"),
+                "cancelled before IO",
+            );
+            testing::assert_eq(error.kind(), io::ErrorKind::Interrupted);
+            testing::assert_none(iterator.next());
+        },
+    );
+    let root = directory("filter-cancel");
+    defer {
+        let _ = fs::remove_dir_all(root);
+    };
+    for postorder in Vec::from_array([false, true]) {
+        context::with_cancel(
+            context::Context::background(),
+            |ctx, cancel| {
+                let iterator = walkdir::WalkDir::new(root).with_context(ctx).contents_first(
+                    postorder,
+                ).filter_entry(
+                    |_| {
+                        cancel.cancel();
+                        true
+                    },
+                ).iter();
+                let error = testing::expect_err(
+                    testing::expect_some(iterator.next(), "error"),
+                    "filter cancellation",
+                );
+                testing::assert_eq(error.kind(), io::ErrorKind::Interrupted);
+                testing::assert_none(iterator.next());
+                testing::assert_eq(retained(root), 0);
+            },
+        );
+    }
+}

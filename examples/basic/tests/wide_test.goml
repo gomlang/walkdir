@@ -1,0 +1,23 @@
+package tests;
+
+use ecosystem::walkdir;
+use std::context;
+use std::io;
+use std::testing;
+
+#[test]
+fn cancelled_walk_is_fused_before_filesystem_access() -> () {
+    context::with_cancel(
+        context::Context::background(),
+        |ctx, cancel| {
+            cancel.cancel();
+            let iterator = walkdir::WalkDir::new("missing").with_context(ctx).iter();
+            let error = testing::expect_err(
+                testing::expect_some(iterator.next(), "cancellation"),
+                "cancelled",
+            );
+            testing::assert_eq(error.kind(), io::ErrorKind::Interrupted);
+            testing::assert_none(iterator.next());
+        },
+    );
+}
