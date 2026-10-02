@@ -9,6 +9,7 @@ pub struct DirEntry {
     metadata_value: fs::Metadata,
     symlink: bool,
     identity: string,
+    device: u64,
 }
 
 impl DirEntry {
@@ -60,6 +61,7 @@ fn read_entry(location: Location, follow: bool) -> Result[DirEntry, Error] {
             metadata_value: metadata.value,
             symlink,
             identity: metadata.identity,
+            device: metadata.device,
         },
     )
 }

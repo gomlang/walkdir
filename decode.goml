@@ -8,6 +8,7 @@ use std::utf8;
 struct NativeMetadata {
     value: fs::Metadata,
     identity: string,
+    device: u64,
 }
 
 fn malformed(operation: string, name: string, message: string) -> fs::Error {
@@ -51,6 +52,7 @@ fn decode_stat(data: Slice[byte], name: string) -> Result[NativeMetadata, fs::Er
                 mode,
                 seconds * 1000000000 + nanos.to_i64(),
             ),
+            device,
             identity: device.to_string() + ":" + inode.to_string(),
         },
     )

@@ -30,12 +30,21 @@ are resolved by the ecosystem verifier's isolated local registry.
 | `min_depth(isize)` | Hide entries shallower than the bound while still traversing them. |
 | `max_depth(isize)` | Include this depth but never read directories below it. |
 | `follow_links(bool)` | Follow file and directory symbolic links, including the root. |
+| `same_file_system(bool)` | Yield foreign-device entries but do not descend into their directories. |
 | `contents_first(bool)` | Yield a directory after its descendants instead of before them. |
 | `filter_entry((DirEntry) -> bool)` | Reject an entry and prune its entire subtree. Repeated filters are combined with short-circuiting AND. |
 
 Negative bounds or `min_depth > max_depth` produce one `InvalidInput` error before filesystem access, followed by exhaustion. The predicate runs after metadata is obtained, before descending, and even for entries hidden by `min_depth`; it also prunes correctly with `contents_first(true)`. Use `std::iter::filter` when only output should be filtered without pruning.
 
 `WalkIterator` implements `Iterator` with `Item = Result[DirEntry, Error]` and composes with `std::iter`. In preorder, call `skip_current_dir()` immediately after receiving a directory to skip its descendants. The directory is not opened until the next `next()` call. Skipping before iteration, after a file or error, or in contents-first order does nothing. `close()` releases all retained directory descriptors, clears pending work, and permanently exhausts the iterator; it is idempotent. Complete exhaustion also releases all descriptors. When stopping early, including after an error, call `close()` or use `defer`; garbage collection does not close descriptors. Explicit `close()` attempts every descriptor and discards close errors; a close failure during normal iteration is returned as an error. On Linux, close is never retried, including after `EINTR`. Exhaustion is permanent. Copies of an iterator share progress and must be used by one consumer; copies of the builder can start independent walks.
+
+`same_file_system(true)` compares each entry's `st_dev` with the root's effective
+device. The root remains depth zero; with link following enabled, its target
+supplies that device. A followed directory link to another device is yielded but
+not opened for descent, in either preorder or contents-first mode. Files on other
+devices are still yielded. Disabling link following leaves links as links. Filters
+and depth bounds still apply to boundary entries. Bind mounts on the same device
+are not excluded; this option is a traversal cutoff, not a confinement boundary.
 
 `DirEntry` exposes `path()`, `file_name() -> Option[string]`, `depth()`, `file_type()`, `metadata()`, and `path_is_symlink()`. Metadata is a snapshot taken before yielding the entry. When following a link, `file_type()` and `metadata()` describe the target while `path_is_symlink()` remains true. Paths retain the supplied root spelling and use `path::join` for children; they are not replaced with canonical target paths.
 

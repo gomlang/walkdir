@@ -8,6 +8,7 @@ pub struct WalkDir {
     minimum: isize,
     maximum: Option[isize],
     follow: bool,
+    same_device: bool,
     postorder: bool,
     predicate: (DirEntry) -> bool,
 }
@@ -20,6 +21,7 @@ impl WalkDir {
             minimum: 0,
             maximum: Option::None,
             follow: false,
+            same_device: false,
             postorder: false,
             predicate: |_| true,
         }
@@ -41,6 +43,10 @@ impl WalkDir {
         WalkDir { follow: enabled, ..self }
     }
 
+    pub fn same_file_system(self: WalkDir, enabled: bool) -> WalkDir {
+        WalkDir { same_device: enabled, ..self }
+    }
+
     pub fn contents_first(self: WalkDir, enabled: bool) -> WalkDir {
         WalkDir { postorder: enabled, ..self }
     }
@@ -53,6 +59,7 @@ impl WalkDir {
         WalkIterator {
             options: self,
             started: Ref::new(false),
+            root_device: Ref::new(Option::None),
             done: Ref::new(false),
             pending: Ref::new(Option::None),
             work: Vec::from_array(

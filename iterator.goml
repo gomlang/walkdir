@@ -21,6 +21,7 @@ enum Work {
 pub struct WalkIterator {
     options: WalkDir,
     started: Ref[bool],
+    root_device: Ref[Option[u64]],
     done: Ref[bool],
     pending: Ref[Option[Pending]],
     work: Vec[Work],
@@ -191,6 +192,9 @@ impl Iterator for WalkIterator {
                         Ok(value) => value,
                         Err(error) => return Option::Some(Result::Err(error)),
                     };
+                    if depth == 0 {
+                        self.root_device.set(Option::Some(entry.device));
+                    }
                     let accepted = (self.options.predicate)(entry);
                     if self.done.get() {
                         return Option::None;
@@ -205,7 +209,9 @@ impl Iterator for WalkIterator {
                         Some(value) => depth < value,
                         None => true,
                     };
-                    if entry.file_type().is_dir() && below_maximum {
+                    let same_device = !self.options.same_device
+                        || self.root_device.get() == Option::Some(entry.device);
+                    if entry.file_type().is_dir() && below_maximum && same_device {
                         if !self.options.postorder && depth >= self.options.minimum {
                             self.pending.set(Option::Some(Pending { entry, location }));
                             return Option::Some(Result::Ok(entry));
