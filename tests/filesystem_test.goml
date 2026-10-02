@@ -1,0 +1,82 @@
+package tests;
+
+use ecosystem::walkdir;
+use std::fs;
+use std::testing;
+
+#[test]
+fn same_filesystem_yields_boundary_links_without_descending_in_both_orders() -> () {
+    let root = directory("same-device");
+    defer {
+        let _ = fs::remove_dir_all(root);
+    };
+    testing::assert_ok(fs::symbolic_link("/proc/self", root + "/foreign"));
+    testing::assert_ok(fs::symbolic_link("/proc/version", root + "/file"));
+    for postorder in Vec::from_array([false, true]) {
+        let iterator = walkdir::WalkDir::new(root).follow_links(true).same_file_system(true).contents_first(
+            postorder,
+        ).iter();
+        let paths = Vec::new();
+        for item in iterator {
+            paths.push(testing::expect_ok(item, "entry").path());
+        }
+        testing::assert_eq(paths.len(), 3);
+        testing::assert(paths.contains(root + "/foreign"));
+        testing::assert(paths.contains(root + "/file"));
+        testing::assert_eq(
+            paths[if postorder {
+                2
+            } else {
+                0
+            }],
+            root,
+        );
+        testing::assert_none(iterator.next());
+    }
+    let iterator = walkdir::WalkDir::new(root + "/foreign").follow_links(true).same_file_system(
+        true,
+    ).max_depth(1).iter();
+    let mut count = 0;
+    for item in iterator {
+        testing::assert_ok(item);
+        count += 1;
+    }
+    testing::assert(count > 1);
+    let iterator = walkdir::WalkDir::new(root).follow_links(true).max_depth(2).iter();
+    let mut deeper = false;
+    for item in iterator {
+        if testing::expect_ok(item, "cross-device entry").depth() == 2 {
+            deeper = true;
+        }
+    }
+    testing::assert(deeper);
+}
+
+#[test]
+fn same_device_cutoff_composes_with_filters_and_hidden_root() -> () {
+    let root = directory("same-device-filter");
+    defer {
+        let _ = fs::remove_dir_all(root);
+    };
+    testing::assert_ok(fs::create_dir(root + "/local"));
+    testing::assert_ok(fs::write_file_structured(root + "/local/file", ""));
+    testing::assert_ok(fs::symbolic_link("/proc/self", root + "/foreign"));
+    let seen = Vec::new();
+    let iterator = walkdir::WalkDir::new(root).follow_links(true).same_file_system(true).min_depth(
+        1,
+    ).filter_entry(
+        |entry| {
+            seen.push(entry.path());
+            entry.file_name() != Option::Some("foreign")
+        },
+    ).iter();
+    let paths = Vec::new();
+    for item in iterator {
+        paths.push(testing::expect_ok(item, "local entry").path());
+    }
+    testing::assert(paths == Vec::from_array([root + "/local", root + "/local/file"]));
+    testing::assert(seen.contains(root + "/foreign"));
+    let links = walkdir::WalkDir::new(root + "/foreign").same_file_system(true).iter();
+    testing::assert(next_entry(links).file_type().is_symlink());
+    testing::assert_none(links.next());
+}

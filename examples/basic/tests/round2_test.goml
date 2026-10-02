@@ -1,0 +1,18 @@
+package tests;
+
+use ecosystem::walkdir;
+use std::testing;
+
+#[test]
+fn same_filesystem_root_is_established_through_followed_link_downstream() -> () {
+    let iterator = walkdir::WalkDir::new("/proc/self").follow_links(true).same_file_system(true).max_depth(
+        1,
+    ).iter();
+    let mut count = 0;
+    for item in iterator {
+        testing::assert_ok(item);
+        count += 1;
+    }
+    testing::assert(count > 1);
+    testing::assert_none(iterator.next());
+}
