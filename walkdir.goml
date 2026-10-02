@@ -1,7 +1,10 @@
 package walkdir;
 
+use std::context;
+
 pub struct WalkDir {
     root: string,
+    context: context::Context,
     minimum: isize,
     maximum: Option[isize],
     follow: bool,
@@ -13,12 +16,17 @@ impl WalkDir {
     pub fn new(root: string) -> WalkDir {
         WalkDir {
             root,
+            context: context::Context::background(),
             minimum: 0,
             maximum: Option::None,
             follow: false,
             postorder: false,
             predicate: |_| true,
         }
+    }
+
+    pub fn with_context(self: WalkDir, context: context::Context) -> WalkDir {
+        WalkDir { context, ..self }
     }
 
     pub fn min_depth(self: WalkDir, depth: isize) -> WalkDir {

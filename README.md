@@ -67,6 +67,13 @@ One descriptor per active ancestor is retained until its subtree finishes. Descr
 Traversal uses an explicit stack rather than recursive calls; memory scales with pending names along the active branch. Very deep trees can reach the process descriptor limit, which produces an OS error for that branch; `max_depth` can bound this usage. Interrupted open, metadata, and directory-read calls retry. Entry failures leave other branches available, so callers must still close an iterator when abandoning it after an error. This API uses ordinary imports, closures, traits, and `for` syntax and adds no grammar or compile-time filesystem access. The native layouts and lifecycle rules follow [getdents64](https://man7.org/linux/man-pages/man2/getdents.2.html), [stat](https://man7.org/linux/man-pages/man2/stat.2.html), [openat](https://man7.org/linux/man-pages/man2/open.2.html), and [close](https://man7.org/linux/man-pages/man2/close.2.html).
 
 
+`WalkDir::with_context(ctx)` ties each iterator to a `std::context::Context`.
+Cancellation is checked before traversal, between entries and directory-read
+batches, and after filters. It returns one `Interrupted` error, closes all
+retained descriptors, and permanently exhausts the iterator. A filter may cancel
+the context without yielding its entry. Individual kernel calls remain
+synchronous; cancellation cannot interrupt a stalled filesystem syscall.
+
 ## Validation
 
 From the repository root:

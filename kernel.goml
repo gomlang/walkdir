@@ -1,6 +1,7 @@
 package walkdir;
 
 use std::fs;
+use std::context;
 use std::io;
 use std::os::linux::syscall;
 use std::os::linux::syscall::{Arg};
@@ -166,10 +167,21 @@ fn close_fd(fd: usize, name: string) -> Result[(), fs::Error] {
     }
 }
 
-fn directory_names(fd: usize, name: string) -> Result[Vec[string], fs::Error] {
+fn directory_names_with(fd: usize, name: string, ctx: context::Context) -> Result[
+    Vec[string],
+    fs::Error,
+] {
     let result = Vec::new();
     let data = zeroes(32768);
     loop {
+        ctx.check().map_err(
+            |error| kernel_error(
+                io::ErrorKind::Interrupted,
+                "read directory",
+                name,
+                error.to_string(),
+            ),
+        )?;
         let count = invoke(
             syscall::SYS_GETDENTS64,
             [

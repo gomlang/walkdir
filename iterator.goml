@@ -29,6 +29,27 @@ pub struct WalkIterator {
 }
 
 impl WalkIterator {
+    fn cancellation(self: WalkIterator) -> Option[Error] {
+        match self.options.context.check() {
+            Ok(()) => Option::None,
+            Err(error) => {
+                self.close();
+                Option::Some(
+                    from_fs(
+                        kernel_error(
+                            io::ErrorKind::Interrupted,
+                            "walk directory",
+                            self.options.root,
+                            error.to_string(),
+                        ),
+                        self.options.root,
+                        0,
+                    ),
+                )
+            },
+        }
+    }
+
     pub fn skip_current_dir(self: WalkIterator) -> () {
         self.pending.set(Option::None);
     }
@@ -78,7 +99,7 @@ fn descend_open(iterator: WalkIterator, pending: Pending) -> Result[(), Error] {
     if let Some(ancestor) = iterator.ancestors[metadata.identity] {
         return Result::Err(loop_error(entry, ancestor));
     }
-    let names = directory_names(fd, entry.path()).map_err(
+    let names = directory_names_with(fd, entry.path(), iterator.options.context).map_err(
         |error| from_fs(error, entry.path(), entry.depth()),
     )?;
     iterator.descriptors.insert(fd, entry.path());
@@ -106,6 +127,9 @@ fn descend_open(iterator: WalkIterator, pending: Pending) -> Result[(), Error] {
 
 fn descend(iterator: WalkIterator, pending: Pending) -> Result[(), Error] {
     let result = descend_open(iterator, pending);
+    if let Some(error) = iterator.cancellation() {
+        return Result::Err(error);
+    }
     if result.is_err() {
         iterator.work.push(Work::Leave(pending.entry, Option::None));
     }
@@ -118,6 +142,9 @@ impl Iterator for WalkIterator {
     fn next(self: WalkIterator) -> Option[Result[DirEntry, Error]] {
         if self.done.get() {
             return Option::None;
+        }
+        if let Some(error) = self.cancellation() {
+            return Option::Some(Result::Err(error));
         }
         if !self.started.get() {
             self.started.set(true);
@@ -137,6 +164,9 @@ impl Iterator for WalkIterator {
             }
         }
         while let Some(work) = self.work.pop() {
+            if let Some(error) = self.cancellation() {
+                return Option::Some(Result::Err(error));
+            }
             match work {
                 Leave(entry, directory) => {
                     if let Some(open) = directory {
@@ -164,6 +194,9 @@ impl Iterator for WalkIterator {
                     let accepted = (self.options.predicate)(entry);
                     if self.done.get() {
                         return Option::None;
+                    }
+                    if let Some(error) = self.cancellation() {
+                        return Option::Some(Result::Err(error));
                     }
                     if !accepted {
                         continue;
