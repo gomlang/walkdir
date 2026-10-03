@@ -126,3 +126,41 @@ fn sorting_callback_cancellation_and_close_release_descriptors() -> () {
     testing::assert_eq(retained(root), 0);
     handle.set(Option::None);
 }
+
+#[test]
+fn explicit_close_wins_over_cancellation_inside_comparator() -> () {
+    let root = directory("sort-close-cancel");
+    defer {
+        let _ = fs::remove_dir_all(root);
+    };
+    for name in["a", "b"] {
+        testing::assert_ok(fs::write_file_structured(root + "/" + name, ""));
+    }
+    for postorder in[false, true] {
+        context::with_cancel(
+            context::Context::background(),
+            |ctx, cancel| {
+                let handle: Ref[Option[walkdir::WalkIterator]] = Ref::new(Option::None);
+                let iterator = walkdir::WalkDir::new(root).with_context(ctx).contents_first(
+                    postorder,
+                ).sort_by_file_name(
+                    |left, right| {
+                        if let Some(active) = handle.get() {
+                            active.close();
+                        }
+                        cancel.cancel();
+                        reverse_name(left, right)
+                    },
+                ).iter();
+                handle.set(Option::Some(iterator));
+                if !postorder {
+                    let _ = next_entry(iterator);
+                }
+                testing::assert_none(iterator.next());
+                testing::assert_none(iterator.next());
+                testing::assert_eq(retained(root), 0);
+                handle.set(Option::None);
+            },
+        );
+    }
+}

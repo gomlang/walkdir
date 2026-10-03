@@ -147,6 +147,9 @@ fn descend_open(iterator: WalkIterator, pending: Pending) -> Result[(), Error] {
 
 fn descend(iterator: WalkIterator, pending: Pending) -> Result[(), Error] {
     let result = descend_open(iterator, pending);
+    if iterator.done.get() {
+        return Result::Ok(());
+    }
     if let Some(error) = iterator.cancellation() {
         return Result::Err(error);
     }
