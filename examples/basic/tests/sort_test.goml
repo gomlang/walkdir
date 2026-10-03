@@ -1,0 +1,36 @@
+package tests;
+
+use ecosystem::walkdir;
+use std::fs;
+use std::testing;
+use std::time;
+
+#[test]
+fn downstream_orders_names_without_changing_traversal_bounds() -> () {
+    let root = "/tmp/goml-walkdir-sort-consumer-"
+        + time::SystemTime::now().unix_nanoseconds().to_string();
+    testing::assert_ok(fs::create_dir(root));
+    defer {
+        let _ = fs::remove_dir_all(root);
+    };
+    for name in["a", "b", "c"] {
+        testing::assert_ok(fs::write_file_structured(root + "/" + name, ""));
+    }
+    let iterator = walkdir::WalkDir::new(root).min_depth(1).max_depth(1).sort_by_file_name(
+        |left, right| {
+            if left < right {
+                1
+            } else if left > right {
+                -1
+            } else {
+                0
+            }
+        },
+    ).iter();
+    defer iterator.close();
+    let names = Vec::new();
+    for item in iterator {
+        names.push(testing::expect_some(testing::expect_ok(item, "entry").file_name(), "name"));
+    }
+    testing::assert(names == Vec::from_array(["c", "b", "a"]));
+}

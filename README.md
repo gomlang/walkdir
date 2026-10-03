@@ -33,8 +33,19 @@ are resolved by the ecosystem verifier's isolated local registry.
 | `same_file_system(bool)` | Yield foreign-device entries but do not descend into their directories. |
 | `contents_first(bool)` | Yield a directory after its descendants instead of before them. |
 | `filter_entry((DirEntry) -> bool)` | Reject an entry and prune its entire subtree. Repeated filters are combined with short-circuiting AND. |
+| `sort_by_file_name((string, string) -> isize)` | Order sibling names with a comparator; negative/zero/positive means before/equal/after. Equal comparisons use ascending filename order as a deterministic tie-break. |
 
 Negative bounds or `min_depth > max_depth` produce one `InvalidInput` error before filesystem access, followed by exhaustion. The predicate runs after metadata is obtained, before descending, and even for entries hidden by `min_depth`; it also prunes correctly with `contents_first(true)`. Use `std::iter::filter` when only output should be filtered without pruning.
+
+The name comparator runs when each directory is opened, before child metadata
+queries and filtering. It receives filenames, not full paths. It applies in
+both preorder and contents-first traversal without changing root placement,
+depth bounds, pruning or symlink handling. Repeated `sort_by_file_name` calls
+replace the previous comparator; the original builder remains reusable with its
+own ordering. Comparators must supply a consistent order. Their callbacks run
+synchronously and should be bounded; cancellation is observed after sorting,
+and cannot interrupt arbitrary callback code. Filenames comparing equal are
+ordered by the library's usual case-sensitive string ordering.
 
 `WalkIterator` implements `Iterator` with `Item = Result[DirEntry, Error]` and composes with `std::iter`. In preorder, call `skip_current_dir()` immediately after receiving a directory to skip its descendants. The directory is not opened until the next `next()` call. Skipping before iteration, after a file or error, or in contents-first order does nothing. `close()` releases all retained directory descriptors, clears pending work, and permanently exhausts the iterator; it is idempotent. Complete exhaustion also releases all descriptors. When stopping early, including after an error, call `close()` or use `defer`; garbage collection does not close descriptors. Explicit `close()` attempts every descriptor and discards close errors; a close failure during normal iteration is returned as an error. On Linux, close is never retried, including after `EINTR`. Exhaustion is permanent. Copies of an iterator share progress and must be used by one consumer; copies of the builder can start independent walks.
 

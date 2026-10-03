@@ -11,6 +11,7 @@ pub struct WalkDir {
     same_device: bool,
     postorder: bool,
     predicate: (DirEntry) -> bool,
+    name_order: Option[(string, string) -> isize],
 }
 
 impl WalkDir {
@@ -24,6 +25,7 @@ impl WalkDir {
             same_device: false,
             postorder: false,
             predicate: |_| true,
+            name_order: Option::None,
         }
     }
 
@@ -53,6 +55,10 @@ impl WalkDir {
 
     pub fn filter_entry(self: WalkDir, predicate: (DirEntry) -> bool) -> WalkDir {
         WalkDir { predicate: |entry| (self.predicate)(entry) && predicate(entry), ..self }
+    }
+
+    pub fn sort_by_file_name(self: WalkDir, compare: (string, string) -> isize) -> WalkDir {
+        WalkDir { name_order: Option::Some(compare), ..self }
     }
 
     pub fn iter(self: WalkDir) -> WalkIterator {
