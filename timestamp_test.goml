@@ -1,0 +1,97 @@
+package walkdir;
+
+use std::io;
+use std::fs;
+use std::os::linux::syscall::{Arg};
+use std::testing;
+
+#[test]
+fn stat_timestamps_preserve_every_representable_i64_boundary() -> () {
+    for (seconds, nanos, expected) in Vec::from_array(
+        [
+            (-9223372037, 145224192, -9223372036854775808),
+            (-9223372037, 999999999, -9223372036000000001),
+            (-9223372036, 0, -9223372036000000000),
+            (-1, 999999999, -1),
+            (0, 0, 0),
+            (9223372036, 0, 9223372036000000000),
+            (9223372036, 854775807, 9223372036854775807),
+        ],
+    ) {
+        let data = zeroes(144);
+        put64(data, 88, seconds.to_u64());
+        put64(data, 96, nanos.to_u64());
+        let info = testing::expect_ok(decode_stat(data.as_slice(), "file"), "in-range timestamp");
+        testing::assert_eq(info.value.modified_unix_nanoseconds(), expected);
+    }
+}
+
+#[test]
+fn stat_timestamps_reject_overflow_instead_of_wrapping_to_another_date() -> () {
+    for (seconds, nanos) in Vec::from_array(
+        [
+            (-9223372036854775808, 0),
+            (-9223372038, 999999999),
+            (-9223372037, 145224191),
+            (9223372036, 854775808),
+            (9223372037, 0),
+            (10000000000, 123456789),
+            (9223372036854775807, 999999999),
+        ],
+    ) {
+        let data = zeroes(144);
+        put64(data, 88, seconds.to_u64());
+        put64(data, 96, nanos.to_u64());
+        let error = testing::expect_err(decode_stat(data.as_slice(), "file"), "timestamp overflow");
+        testing::assert_eq(error.kind(), io::ErrorKind::InvalidData);
+        testing::assert(error.path() == Option::Some("file"));
+        testing::assert_eq(error.operation(), "read metadata");
+    }
+}
+
+#[test]
+fn overflowing_file_timestamp_reports_error_and_continues_to_siblings() -> () {
+    let root = temporary("timestamp");
+    defer {
+        let _ = fs::remove_dir_all(root);
+    };
+    let future = root + "/a-future";
+    let sibling = root + "/z-normal";
+    testing::expect_ok(fs::write_file_structured(future, "future"), "future file");
+    testing::expect_ok(fs::write_file_structured(sibling, "normal"), "normal file");
+    let name = testing::expect_ok(c_path(future, "utimensat", future), "native path");
+    let times = zeroes(32);
+    put64(times, 0, 10000000000);
+    put64(times, 16, 10000000000);
+    put64(times, 24, 123456789);
+    testing::expect_ok(
+        invoke(
+            280,
+            [
+                Arg::Word(AT_FDCWD.to_usize()),
+                Arg::Buffer(name.as_mut_slice()),
+                Arg::Buffer(times.as_mut_slice()),
+                Arg::Word(0),
+                Arg::Word(0),
+                Arg::Word(0),
+            ],
+            "utimensat",
+            future,
+        ),
+        "set post-2262 modification time",
+    );
+    let before = descriptors(root);
+    let iterator = WalkDir::new(root).min_depth(1).iter();
+    defer iterator.close();
+    let error = testing::expect_err(
+        testing::expect_some(iterator.next(), "overflow entry"),
+        "timestamp must not wrap",
+    );
+    testing::assert_eq(error.kind(), io::ErrorKind::InvalidData);
+    testing::assert_eq(error.path(), future);
+    testing::assert_eq(error.depth(), 1);
+    let entry = testing::expect_ok(testing::expect_some(iterator.next(), "sibling"), "normal entry");
+    testing::assert_eq(entry.path(), sibling);
+    testing::assert_none(iterator.next());
+    testing::assert_eq(descriptors(root), before);
+}

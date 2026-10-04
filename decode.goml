@@ -38,6 +38,17 @@ fn decode_stat(data: Slice[byte], name: string) -> Result[NativeMetadata, fs::Er
     if nanos >= 1000000000 {
         return Result::Err(malformed("read metadata", name, "invalid stat nanoseconds"));
     }
+    if seconds < -9223372037 || seconds > 9223372036 || seconds == -9223372037 && nanos < 145224192
+        || seconds == 9223372036 && nanos > 854775807 {
+        return Result::Err(
+            malformed("read metadata", name, "stat modification time exceeds i64 nanoseconds"),
+        );
+    }
+    let modified = if seconds < 0 {
+        (seconds + 1) * 1000000000 + nanos.to_i64() - 1000000000
+    } else {
+        seconds * 1000000000 + nanos.to_i64()
+    };
     let file_type = match mode & 0xf000 {
         0x8000 => fs::FileType::File,
         0x4000 => fs::FileType::Directory,
@@ -46,12 +57,7 @@ fn decode_stat(data: Slice[byte], name: string) -> Result[NativeMetadata, fs::Er
     };
     Result::Ok(
         NativeMetadata {
-            value: fs::Metadata::from_parts(
-                file_type,
-                size,
-                mode,
-                seconds * 1000000000 + nanos.to_i64(),
-            ),
+            value: fs::Metadata::from_parts(file_type, size, mode, modified),
             device,
             identity: device.to_string() + ":" + inode.to_string(),
         },

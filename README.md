@@ -59,6 +59,11 @@ are not excluded; this option is a traversal cutoff, not a confinement boundary.
 
 `DirEntry` exposes `path()`, `file_name() -> Option[string]`, `depth()`, `file_type()`, `metadata()`, and `path_is_symlink()`. Metadata is a snapshot taken before yielding the entry. When following a link, `file_type()` and `metadata()` describe the target while `path_is_symlink()` remains true. Paths retain the supplied root spelling and use `path::join` for children; they are not replaced with canonical target paths.
 
+Modification times must fit the standard metadata API's signed 64-bit Unix
+nanoseconds. An out-of-range native timestamp produces `InvalidData` for that
+entry instead of wrapping to another date. Both representable endpoints are
+accepted, including negative timestamps with fractional seconds.
+
 `Error` exposes `path()`, `depth()`, `kind()`, `fs_error()`, and `loop_ancestor() -> Option[string]`, plus `ToString` and `Debug`. The underlying `fs::Error` retains its operation and available raw OS code. A failed entry or directory emits an error and traversal continues with remaining branches. Errors are not suppressed by `min_depth`. A directory-read error follows its entry in preorder and precedes its entry in contents-first order. Device and inode identities from opened directory descriptors detect ancestor loops, including directory links and bind-mount aliases; these return `InvalidData` with the offending path and the ancestor's traversal path, then skip that subtree. Sibling aliases to the same directory are each traversed. Dangling links are ordinary link entries by default and metadata errors when followed; a link chain rejected by the OS reports its filesystem error without a loop ancestor.
 
 ```goml
