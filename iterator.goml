@@ -1,7 +1,6 @@
 package walkdir;
 
 use std::io;
-use std::path;
 
 struct Pending {
     entry: DirEntry,
@@ -131,14 +130,15 @@ fn descend_open(iterator: WalkIterator, pending: Pending) -> Result[(), Error] {
     let mut index = names.len();
     while index > 0 {
         index -= 1;
+        let parent = entry.path();
+        let child = if parent.ends_with("/") {
+            parent + names[index]
+        } else {
+            parent + "/" + names[index]
+        };
         iterator.work.push(
             Work::Visit(
-                Location {
-                    path: path::join(entry.path(), names[index]),
-                    name: names[index],
-                    parent: fd,
-                    depth: entry.depth() + 1,
-                },
+                Location { path: child, name: names[index], parent: fd, depth: entry.depth() + 1 },
             ),
         );
     }

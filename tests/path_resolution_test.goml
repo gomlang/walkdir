@@ -1,0 +1,45 @@
+package tests;
+
+use ecosystem::walkdir;
+use std::fs;
+use std::testing;
+
+#[test]
+fn descendant_paths_preserve_symlink_parent_components() -> () {
+    let outer = directory("path-resolution");
+    defer {
+        let _ = fs::remove_dir_all(outer);
+    };
+    testing::assert_ok(fs::create_dir_all(outer + "/real/anchor"));
+    testing::assert_ok(fs::create_dir_all(outer + "/real/files/nested"));
+    testing::assert_ok(fs::create_dir_all(outer + "/files/nested"));
+    testing::assert_ok(fs::symbolic_link(outer + "/real/anchor", outer + "/link"));
+    testing::assert_ok(fs::write_file_structured(outer + "/real/files/nested/note", "correct"));
+    testing::assert_ok(fs::write_file_structured(outer + "/files/nested/note", "wrong"));
+    for suffix in Vec::from_array(["", "/"]) {
+        let root = outer + "/link/../files" + suffix;
+        for postorder in Vec::from_array([false, true]) {
+            let iterator = walkdir::WalkDir::new(root).contents_first(postorder).iter();
+            defer iterator.close();
+            let mut count = 0;
+            for item in iterator {
+                let entry = testing::expect_ok(item, "entry");
+                count += 1;
+                if entry.depth() == 0 {
+                    testing::assert_eq(entry.path(), root);
+                } else {
+                    testing::assert(entry.path().starts_with(root));
+                }
+                if entry.file_type().is_file() {
+                    testing::assert_eq(entry.depth(), 2);
+                    testing::assert_eq(entry.metadata().len(), 7);
+                    testing::assert_eq(
+                        testing::expect_ok(fs::read_file_structured(entry.path()), "entry path"),
+                        "correct",
+                    );
+                }
+            }
+            testing::assert_eq(count, 3);
+        }
+    }
+}

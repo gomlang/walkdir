@@ -57,7 +57,7 @@ devices are still yielded. Disabling link following leaves links as links. Filte
 and depth bounds still apply to boundary entries. Bind mounts on the same device
 are not excluded; this option is a traversal cutoff, not a confinement boundary.
 
-`DirEntry` exposes `path()`, `file_name() -> Option[string]`, `depth()`, `file_type()`, `metadata()`, and `path_is_symlink()`. Metadata is a snapshot taken before yielding the entry. When following a link, `file_type()` and `metadata()` describe the target while `path_is_symlink()` remains true. Paths retain the supplied root spelling and use `path::join` for children; they are not replaced with canonical target paths.
+`DirEntry` exposes `path()`, `file_name() -> Option[string]`, `depth()`, `file_type()`, `metadata()`, and `path_is_symlink()`. Metadata is a snapshot taken before yielding the entry. When following a link, `file_type()` and `metadata()` describe the target while `path_is_symlink()` remains true. Paths retain the supplied root spelling when appending children, including `.` and `..` components; they are not replaced with canonical target paths. This keeps child paths consistent with descriptor-relative traversal when a root contains `link/..`.
 
 Modification times must fit the standard metadata API's signed 64-bit Unix
 nanoseconds. An out-of-range native timestamp produces `InvalidData` for that
