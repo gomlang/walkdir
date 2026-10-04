@@ -99,9 +99,12 @@ fn descend_open(iterator: WalkIterator, pending: Pending) -> Result[(), Error] {
     if let Some(ancestor) = iterator.ancestors[metadata.identity] {
         return Result::Err(loop_error(entry, ancestor));
     }
-    let names = directory_names_with(fd, entry.path(), iterator.options.context).map_err(
-        |error| from_fs(error, entry.path(), entry.depth()),
-    )?;
+    let names = directory_names_with(
+        fd,
+        entry.path(),
+        iterator.options.context,
+        iterator.options.name_order.is_none(),
+    ).map_err(|error| from_fs(error, entry.path(), entry.depth()))?;
     if let Some(compare) = iterator.options.name_order {
         names.sort_by(
             |left, right| {

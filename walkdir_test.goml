@@ -207,7 +207,7 @@ fn reads_multiple_batches_and_closes_on_exec() -> () {
     testing::assert_eq(flags.errno, 0);
     testing::assert(flags.r1 & 1 != 0);
     let actual = testing::expect_ok(
-        directory_names_with(fd, root, context::Context::background()),
+        directory_names_with(fd, root, context::Context::background(), true),
         "getdents64",
     );
     let expected = testing::expect_ok(fs::read_dir(root), "host read directory");
@@ -235,7 +235,7 @@ fn preserves_errno_and_rejects_embedded_nul() -> () {
     let fd = testing::expect_ok(open_directory(location(root), false), "open directory");
     testing::expect_ok(close_fd(fd, root), "close directory");
     let error = testing::expect_err(
-        directory_names_with(fd, root, context::Context::background()),
+        directory_names_with(fd, root, context::Context::background(), true),
         "closed directory",
     );
     testing::assert(error.raw_os_code() == Option::Some(9));
