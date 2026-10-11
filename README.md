@@ -2,7 +2,7 @@
 
 A GoML library extracted from the former `std::fs::walkdir` package. The public
 API and Linux amd64 behavior are preserved; the import and dependency coordinate
-now belong to the ecosystem. It uses the published GoML 0.1.50 standard library,
+now belong to the ecosystem. It uses the public GoML standard library,
 including public `std::os::linux::syscall`, without compiler or private runtime
 imports, generated native bindings, or additional host libraries.
 
@@ -12,7 +12,7 @@ Declare the dependency in your module-root `goml.toml`:
 
 ```toml
 [dependencies]
-"ecosystem::walkdir" = "0.1.0"
+"ecosystem::walkdir" = true
 ```
 
 Replace `use std::fs::walkdir;` with `use ecosystem::walkdir;`. Existing calls and
@@ -108,7 +108,7 @@ From the repository root:
 ```
 
 The `examples/basic` example preserves the complete former compiler regression
-fixture and exercises the public API. `goml verify` also tests it through an
+fixture and exercises the public API. the ecosystem verifier also tests it through an
 isolated registry snapshot. The module retains all 8 original internal tests and adds 6 public-API
 tests for filesystem boundaries and resource lifecycle. The GoML verifier compiles
 the generated library and example test runners with Go's race detector and runs
@@ -122,12 +122,12 @@ independent parallel iterators, and descriptor release on errors or early close.
 
 ## Development and examples
 
-Requires GoML 0.1.56 or newer. The `examples/basic/` example shares the root manifest and its dependencies. From the library root, run:
+Requires a current GoML toolchain supporting unversioned registry dependencies; see [the pinned ecosystem toolchain](https://github.com/gomlang/verification/blob/main/ci/toolchain.json). The `examples/basic/` example shares the root manifest and its dependencies. From the library root, run:
 
 ```sh
 goml run --example basic
 goml test
-goml verify --timeout 300s
+(cd ../verification && just ecosystem-test walkdir)
 ```
 
-`goml test` builds the example and runs its tests. `goml verify` repeats the example checks as an independent module against an isolated registry snapshot. `(cd ../verification && just ecosystem-test walkdir)` also retains the library-specific smoke and compatibility checks.
+`goml test` builds the example and runs its tests. The ecosystem verifier uses an isolated registry snapshot and runs the library-specific smoke and compatibility checks.
