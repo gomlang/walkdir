@@ -104,7 +104,7 @@ synchronous; cancellation cannot interrupt a stalled filesystem syscall.
 From the repository root:
 
 ```sh
-(cd ../verification && just ecosystem-test walkdir)
+(cd ../workflows && just ecosystem-test walkdir)
 ```
 
 The `examples/basic` example preserves the complete former compiler regression
@@ -122,12 +122,12 @@ independent parallel iterators, and descriptor release on errors or early close.
 
 ## Development and examples
 
-Requires a current GoML toolchain supporting unversioned registry dependencies; see [the pinned ecosystem toolchain](https://github.com/gomlang/verification/blob/main/ci/toolchain.json). The `examples/basic/` example shares the root manifest and its dependencies. From the library root, run:
+Requires a current GoML toolchain supporting unversioned registry dependencies; see [the pinned ecosystem toolchain](https://github.com/gomlang/workflows/blob/main/ci/toolchain.json). The `examples/basic/` example shares the root manifest and its dependencies. From the library root, run:
 
 ```sh
 goml run --example basic
 goml test
-(cd ../verification && just ecosystem-test walkdir)
+(cd ../workflows && just ecosystem-test walkdir)
 ```
 
 `goml test` builds the example and runs its tests. The ecosystem verifier uses an isolated registry snapshot and runs the library-specific smoke and compatibility checks.
